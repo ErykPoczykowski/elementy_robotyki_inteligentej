@@ -1,10 +1,11 @@
 import pygame
 import random
 import heapq
+import sys
 
 # --- Konfiguracja ---
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
+SCREEN_WIDTH = 820
+SCREEN_HEIGHT = 620
 CELL_SIZE = 20
 MAZE_WIDTH = SCREEN_WIDTH // CELL_SIZE
 MAZE_HEIGHT = SCREEN_HEIGHT // CELL_SIZE
@@ -17,6 +18,17 @@ RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 YELLOW = (255, 255, 0)
 ORANGE = (255, 165, 0)
+GRAY = (100, 100, 100)
+
+# ### ZMIANA ### - Dodano zasięg wykrywania do ustawień trudności
+DIFFICULTY_SETTINGS = {
+    'easy': {'spawn_points': ['bottom-left', 'bottom-right', 'top-right'], 'speed_multiplier': 1.0,
+             'chase_distance': 8},
+    'normal': {'spawn_points': ['bottom-left', 'bottom-right', 'top-right', 'center'], 'speed_multiplier': 0.9,
+               'chase_distance': 9},
+    'hard': {'spawn_points': ['bottom-left', 'bottom-right', 'top-right', 'center', 'center-left'],
+             'speed_multiplier': 0.8, 'chase_distance': 10}
+}
 
 
 # --- Klasy ---
@@ -38,18 +50,18 @@ class Player:
 
 
 class Enemy:
-    def __init__(self, x, y):
+    # ### ZMIANA ### - Konstruktor przyjmuje zasięg wykrywania
+    def __init__(self, x, y, speed_multiplier=1.0, chase_distance=8):
         self.x = x
         self.y = y
-        self.chase_distance = 8
+        self.chase_distance = chase_distance
         self.state = 'patrolling'
         self.unseen_timer = 0
         self.seek_path = []
         self.last_known_pos = None
 
-        # ### ZMIANA ### - Indywidualne ustawienia prędkości i timer
-        self.move_delay_default = 300
-        self.move_delay_chase = int(self.move_delay_default * 0.75)  # 25% szybciej
+        self.move_delay_default = int(300 * speed_multiplier)
+        self.move_delay_chase = int(self.move_delay_default * 0.75)
         self.current_move_delay = self.move_delay_default
         self.move_timer = 0
 
@@ -62,30 +74,35 @@ class Enemy:
         if possible_moves:
             self.x, self.y = random.choice(possible_moves)
 
-    def update(self, player, maze, dt):
-        distance_to_player = abs(self.x - player.x) + abs(self.y - player.y)
+    def update(self, player, maze, dt, player_near_exit=False):
+        if player_near_exit:
+            self.state = 'chasing'
+            self.current_move_delay = self.move_delay_chase
+            path = a_star((self.x, self.y), (player.x, player.y), maze)
+            if path and len(path) > 1:
+                self.x, self.y = path[1]
+            return
 
+        distance_to_player = abs(self.x - player.x) + abs(self.y - player.y)
         if distance_to_player <= self.chase_distance:
             if self.state != 'chasing':
                 self.state = 'chasing'
-                self.current_move_delay = self.move_delay_chase  # Przyspiesz!
+                self.current_move_delay = self.move_delay_chase
             self.unseen_timer = 0
             self.seek_path = []
             self.last_known_pos = (player.x, player.y)
         else:
             if self.state == 'chasing':
                 self.state = 'seeking'
-                self.current_move_delay = self.move_delay_default  # Wróć do normalnej prędkości
+                self.current_move_delay = self.move_delay_default
                 if self.last_known_pos:
                     self.seek_path = a_star((self.x, self.y), self.last_known_pos, maze)
             elif self.state == 'patrolling':
                 self.unseen_timer += dt
-
         if self.state == 'chasing':
             path = a_star((self.x, self.y), (player.x, player.y), maze)
             if path and len(path) > 1:
                 self.x, self.y = path[1]
-
         elif self.state == 'seeking':
             if self.seek_path and len(self.seek_path) > 1:
                 self.x, self.y = self.seek_path.pop(1)
@@ -94,7 +111,6 @@ class Enemy:
                 self.current_move_delay = self.move_delay_default
                 self.seek_path = []
                 self.unseen_timer = 0
-
         elif self.state == 'patrolling':
             if self.unseen_timer > 5000:
                 self.unseen_timer = 0
@@ -167,25 +183,35 @@ def remove_walls_uniformly(maze, removal_probability=0.15):
 
 def find_spawn_point(maze, area):
     w, h = MAZE_WIDTH, MAZE_HEIGHT
-    if area == 'bottom-left':
-        for y in range(h - 2, 0, -1):
-            for x in range(1, w // 2):
-                if maze[y][x] == 0: return (x, y)
-    elif area == 'top-right':
-        for y in range(1, h // 2):
-            for x in range(w - 2, 0, -1):
-                if maze[y][x] == 0: return (x, y)
-    elif area == 'bottom-right':
-        for y in range(h - 2, 0, -1):
-            for x in range(w - 2, w // 2, -1):
-                if maze[y][x] == 0: return (x, y)
+    areas = {
+        'bottom-left': ((1, w // 2), (h - 2, h // 2)),
+        'top-right': ((w - 2, w // 2), (1, h // 2)),
+        'bottom-right': ((w - 2, w // 2), (h - 2, h // 2)),
+        'top-left': ((1, w // 2), (1, h // 2)),
+        'center-left': ((1, w // 2), (h // 2 - 2, h // 2 + 2)),
+        'center': ((w // 2 - 5, w // 2 + 5), (h // 2 - 5, h // 2 + 5))
+    }
+    x_range_tuple, y_range_tuple = areas.get(area, ((1, w - 2), (1, h - 2)))
+    x_start, x_end = min(x_range_tuple), max(x_range_tuple)
+    y_start, y_end = min(y_range_tuple), max(y_range_tuple)
+
+    possible_points = []
+    for y in range(y_start, y_end):
+        for x in range(x_start, x_end):
+            if maze[y][x] == 0:
+                possible_points.append((x, y))
+
+    if possible_points:
+        return random.choice(possible_points)
+
     return (1, h - 2)
 
 
 def find_exit(maze, width, height):
     for y in range(height - 2, 0, -1):
         for x in range(width - 2, 0, -1):
-            if maze[y][x] == 0: return (x, y)
+            if maze[y][x] == 0:
+                return (x, y)
     return (width - 2, height - 2)
 
 
@@ -229,28 +255,69 @@ def draw_maze(screen, maze):
                 pygame.draw.rect(screen, BLACK, (x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
 
+def difficulty_menu(screen):
+    title_font = pygame.font.Font(None, 74)
+    button_font = pygame.font.Font(None, 50)
+
+    title_text = title_font.render("Ucieczka z Labiryntu", True, BLACK)
+    subtitle_text = button_font.render("Wybierz Poziom Trudnosci:", True, GRAY)
+
+    buttons = {
+        'easy': {'text': "Latwy", 'rect': pygame.Rect(SCREEN_WIDTH / 2 - 100, 250, 200, 50)},
+        'normal': {'text': "Normalny", 'rect': pygame.Rect(SCREEN_WIDTH / 2 - 100, 320, 200, 50)},
+        'hard': {'text': "Trudny", 'rect': pygame.Rect(SCREEN_WIDTH / 2 - 100, 390, 200, 50)}
+    }
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                for level, data in buttons.items():
+                    if data['rect'].collidepoint(event.pos):
+                        return level
+
+        screen.fill(WHITE)
+        screen.blit(title_text, (SCREEN_WIDTH / 2 - title_text.get_width() / 2, 100))
+        screen.blit(subtitle_text, (SCREEN_WIDTH / 2 - subtitle_text.get_width() / 2, 180))
+
+        for level, data in buttons.items():
+            pygame.draw.rect(screen, GREEN, data['rect'])
+            text_surf = button_font.render(data['text'], True, BLACK)
+            screen.blit(text_surf, (data['rect'].x + (data['rect'].width - text_surf.get_width()) / 2,
+                                    data['rect'].y + (data['rect'].height - text_surf.get_height()) / 2))
+
+        pygame.display.flip()
+
+
 def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Ucieczka z Labiryntu - Szybsi Przeciwnicy")
+    pygame.display.set_caption("Ucieczka z Labiryntu")
     clock = pygame.time.Clock()
     font = pygame.font.Font(None, 50)
 
-    # Gwarancja istnienia trasy:
-    # Algorytm generate_maze() tworzy labirynt, w którym z każdego punktu
-    # da się dotrzeć do każdego innego. Funkcja remove_walls_uniformly()
-    # tylko dodaje nowe połączenia, więc trasa od startu do mety ZAWSZE istnieje.
-    maze = generate_maze(MAZE_WIDTH, MAZE_HEIGHT)
-    remove_walls_uniformly(maze, removal_probability=0.15)
+    selected_difficulty = difficulty_menu(screen)
+    settings = DIFFICULTY_SETTINGS[selected_difficulty]
+    spawn_points_config = settings['spawn_points']
+    speed_multiplier = settings['speed_multiplier']
+    chase_distance = settings['chase_distance']  # Pobierz zasięg wykrywania
+
+    while True:
+        maze = generate_maze(MAZE_WIDTH, MAZE_HEIGHT)
+        remove_walls_uniformly(maze, removal_probability=0.15)
+        exit_pos = find_exit(maze, MAZE_WIDTH, MAZE_HEIGHT)
+        if a_star((1, 1), exit_pos, maze):
+            break
 
     player = Player(1, 1)
-    exit_pos = find_exit(maze, MAZE_WIDTH, MAZE_HEIGHT)
 
-    enemies = [
-        Enemy(*find_spawn_point(maze, 'bottom-left')),
-        Enemy(*find_spawn_point(maze, 'top-right')),
-        Enemy(*find_spawn_point(maze, 'bottom-right'))
-    ]
+    enemies = []
+    for spawn_area in spawn_points_config:
+        spawn_pos = find_spawn_point(maze, spawn_area)
+        # ### ZMIANA ### - Przekaż zasięg wykrywania do konstruktora
+        enemies.append(Enemy(*spawn_pos, speed_multiplier=speed_multiplier, chase_distance=chase_distance))
 
     game_over = False
     win = False
@@ -272,13 +339,14 @@ def main():
                     if game_over: break
 
         if not game_over:
-            # ### ZMIANA ### - Logika ruchu oparta na indywidualnych timerach wrogów
+            distance_to_exit = abs(player.x - exit_pos[0]) + abs(player.y - exit_pos[1])
+            player_near_exit = distance_to_exit <= 10
+
             current_time = pygame.time.get_ticks()
             for enemy in enemies:
                 if current_time - enemy.move_timer > enemy.current_move_delay:
-                    enemy.update(player, maze, enemy.current_move_delay)
+                    enemy.update(player, maze, enemy.current_move_delay, player_near_exit)
                     enemy.move_timer = current_time
-
             for enemy in enemies:
                 if player.x == enemy.x and player.y == enemy.y: win, game_over = False, True
 
