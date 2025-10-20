@@ -1,9 +1,0 @@
-wersja robota: 2
-
--OUT_A: 
--OUT_B: prawy serwmotor
--OUT_C: lewy serwmotor
-
--IN_1: kompas
--IN_2: sensor kolorów
--IN_3: sonar
