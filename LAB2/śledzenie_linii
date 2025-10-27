@@ -1,0 +1,93 @@
+// robot śledzi czarną linie od zewnątrz
+		/*
+		x = 30;
+		xtemp = 30;
+		y = 30;
+		ytemp = 30;
+		NXT::Sensor::SetColor(&comm, IN_2, 'n');
+
+		do
+		{
+			color = NXT::Sensor::GetValue(&comm, IN_2);
+
+			if (color < 30)
+			{
+				xtemp = x;
+				cout << "\nwidze linie! jade do przodu. Nasycenie: " << color;
+				NXT::Motor::SetForward(&comm, OUT_B, x);
+				NXT::Motor::SetForward(&comm, OUT_C, x);
+			}
+			else
+			{
+				cout << "\nnie widze linii! skręcam w prawo. Nasycenie: " << color;
+				ytemp = y;
+				NXT::Motor::SetReverse(&comm, OUT_B, y);
+				NXT::Motor::SetForward(&comm, OUT_C, y);
+			}
+			if (kbhit() == true)
+			{
+				decyzja = getch();
+				if (decyzja == 'p' || decyzja == 'P')
+				{
+					NXT::Motor::Stop(&comm, OUT_B, 0);
+					NXT::Motor::Stop(&comm, OUT_C, 0);
+					NXT::Motor::Stop(&comm, OUT_A, 0);
+					NXT::Sensor::SetSonarOff(&comm, IN_1);
+					NXT::Sensor::SetColorOff(&comm, IN_2);
+
+					break;
+				}
+			continue;
+			}
+			
+		}while(decyzja != 'p' && decyzja != 'P');
+		*/
+		// robot śledzi czarną linie od wewnątrz
+		/*
+		x = 10;
+		xtemp = 10;
+		y = 10;
+		ytemp = 10;
+		NXT::Sensor::SetColor(&comm, IN_2, 'n');
+
+		do
+		{
+			color = NXT::Sensor::GetValue(&comm, IN_2);
+
+			if (color > 30)
+			{
+				xtemp = x;
+				cout << "\nnie widze linii! jade do przodu. Nasycenie: " << color;
+				NXT::Motor::SetForward(&comm, OUT_B, x);
+				NXT::Motor::SetForward(&comm, OUT_C, x);
+			}
+			else
+			{
+			
+				cout << "\nwidze linie! skręcam w prawo. Nasycenie: " << color;
+
+				ytemp = y;
+				NXT::Motor::SetReverse(&comm, OUT_B, y);
+				NXT::Motor::SetForward(&comm, OUT_C, y);
+				
+
+				
+			}
+			if (kbhit() == true)
+			{
+				decyzja = getch();
+				if (decyzja == 'p' || decyzja == 'P')
+				{
+					NXT::Motor::Stop(&comm, OUT_B, 0);
+					NXT::Motor::Stop(&comm, OUT_C, 0);
+					NXT::Motor::Stop(&comm, OUT_A, 0);
+					NXT::Sensor::SetSonarOff(&comm, IN_1);
+					NXT::Sensor::SetColorOff(&comm, IN_2);
+
+					break;
+				}
+				continue;
+			}
+
+		} while (decyzja != 'p' && decyzja != 'P');
+		*/
