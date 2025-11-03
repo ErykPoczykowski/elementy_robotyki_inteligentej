@@ -14,22 +14,28 @@ Comm::NXTComm comm;
 //CZUJNIKI SA INICJOWANE PRZED PETLA NIESKONCZONA,
 //CZUJNIKI SA DEAKTYWOWANE ZA PETLA NIESKONCZONA, LUB PO KOMENDZIE k,
 
-int convert(int k, int x) 
+int convert(int k, int x)
 {
 	x = x - k;
-	if (x > 180) x = x - 360;
-	else if (x < -180)x = 360 + x;
+	if (x > 180)
+	{
+		x = x - 360;
+	}
+	else if (x < -180)
+	{
+		x = 360 + x;
+	}
 	return x;
 }
 
 int ksi = 1;
 
-void steer(int k1, int k2, int k, int orient) 
+void steer(int k1, int k2, int k, int orient)
 {
 	int cte = convert(k, orient);
-	if(cte <= 0)
+	if (cte <= 0)
 	{
-		if(abs(cte) > k1)
+		if (abs(cte) > k1)
 		{
 			k2 = 0;
 		}
@@ -38,22 +44,22 @@ void steer(int k1, int k2, int k, int orient)
 			k2 = k1 + (ksi * cte);
 		}
 	}
-	if(cte > 0)
+	if (cte > 0)
 	{
-		if(cte > k2)
+		if (cte > k2)
 		{
 			k1 = 0;
 		}
 		else
 		{
-			k1 = k2- (ksi * cte);
+			k1 = k2 - (ksi * cte);
 		}
 	}
-	cout << "k1 = " << k1 << "k2 =" << k2 << endl;
+	cout << "k1 = " << k1 << "; k2 =" << k2 << endl;
 }
-		
-	
-	
+
+
+
 
 
 
@@ -62,54 +68,54 @@ int main()
 	srand(time(NULL));
 
 	cout << "Szukanie sygnalu... to moze zajac chwile.\n";
-	if(NXT::OpenBT(&comm)) //initialize the NXT and continue if it succeeds
+	if (NXT::OpenBT(&comm)) //initialize the NXT and continue if it succeeds
 	{
-		cout<< "Sygnal znaleziony!";
-		cout<<"\nPoziom baterii = "<<NXT::BatteryLevel(&comm);
-		cout<<"\nDostepna pamiec flash = "<<NXT::GetAvailableFlash(&comm);
-		
-		int x=30;//szybkość jazdy w przód i tył
-		int xtemp=30;//potrzebna do sprawdzania czy predkosc sie zmienila
+		cout << "Sygnal znaleziony!";
+		cout << "\nPoziom baterii = " << NXT::BatteryLevel(&comm);
+		cout << "\nDostepna pamiec flash = " << NXT::GetAvailableFlash(&comm);
 
-		int y=20;//szybkość obrotu w lewo, prawo
-		int ytemp=20;//potrzebna do sprawdzania czy predkosc sie zmienila
+		int x = 30;//szybkość jazdy w przód i tył
+		int xtemp = 30;//potrzebna do sprawdzania czy predkosc sie zmienila
+
+		int y = 20;//szybkość obrotu w lewo, prawo
+		int ytemp = 20;//potrzebna do sprawdzania czy predkosc sie zmienila
 
 		char last_value;//zapamietana ostatnia instrukcja sterująca
 
 		//Przed uzyciem sprawdzamy numer portu do którego jest podlączony sensor, 
 		//NXT::Sensor::SetTouch(&comm, IN_1);//inicjacja sensora dotyku
-		
+
 		//aktywacja kompasu,
 		NXT::Sensor::SetSonar(&comm, IN_1);
 
 		//aktywacja czujnika koloru
-		NXT::Sensor::SetColor(&comm,IN_2,'n');
+		NXT::Sensor::SetColor(&comm, IN_2, 'n');
 		int color;
-	    
+
 		//aktywacja sonaru,
-		NXT::Sensor::SetSonar(&comm, IN_3);
+		//NXT::Sensor::SetSonar(&comm, IN_3);
 
 		//początek programu
-		NXT::StartProgram(&comm,"program1");
+		NXT::StartProgram(&comm, "program1");
 
 		//zmienna używana do sterowania
 		char decyzja;
 
-		cout<<"\n ___Podstawowe sterowanie do uzupelnienia___";
-		cout<<"\n A - jazda w lewo"; 
-		cout<<"\n D - jazda w prawo"; 
-		cout<<"\n W - jazda na wprost"; 
-		cout<<"\n S - jazda do tylu"; 
-		cout<<"\n U - odczyt z sonaru"; 
-		cout<<"\n C - odczyt nasycenia koloru";
-		cout<<"\n V - odczyt z kompasu";
-		cout<<"\n H - Zatrzymanie silnikow";
+		cout << "\n ___Podstawowe sterowanie do uzupelnienia___";
+		cout << "\n A - jazda w lewo";
+		cout << "\n D - jazda w prawo";
+		cout << "\n W - jazda na wprost";
+		cout << "\n S - jazda do tylu";
+		cout << "\n U - odczyt z sonaru";
+		cout << "\n C - odczyt nasycenia koloru";
+		cout << "\n V - odczyt z kompasu";
+		cout << "\n H - Zatrzymanie silnikow";
 		cout << "\n I - sledzenie lini z zewnątrz";
 		cout << "\n O - sledzenie lini z wewnatrz";
 		cout << "\n Z - program sumo";
 		cout << "\n P - implementacja kontrolera PID";
 		cout << "\n X - test kontrolera P";
-		cout<<"\nK - Koniec Programu";
+		cout << "\nK - Koniec Programu";
 
 		do
 		{
@@ -125,319 +131,342 @@ int main()
 			}
 		*/
 
-			if(kbhit()==true)
+			if (kbhit() == true)
 			{
-            
-			decyzja=getch();
-			if (decyzja == 'I' || decyzja == 'i')
-			{
-				NXT::Sensor::SetColor(&comm, IN_2, 'n');
 
-				do
+				decyzja = getch();
+				if (decyzja == 'I' || decyzja == 'i')
 				{
-					color = NXT::Sensor::GetValue(&comm, IN_2);
+					NXT::Sensor::SetColor(&comm, IN_2, 'n');
 
-					if (color < 30)
+					do
 					{
-						xtemp = x;
-						cout << "\nwidze linie! jade do przodu. Nasycenie: " << color;
-						NXT::Motor::SetForward(&comm, OUT_B, x);
-						NXT::Motor::SetForward(&comm, OUT_C, x);
-					}
-					else
-					{
-						cout << "\nnie widze linii! skręcam w prawo. Nasycenie: " << color;
-						ytemp = y;
-						NXT::Motor::SetReverse(&comm, OUT_B, y);
-						NXT::Motor::SetForward(&comm, OUT_C, y);
-					}
-					if (kbhit() == true)
-					{
-						decyzja = getch();
-						if (decyzja == 'K' || decyzja == 'k')
+						color = NXT::Sensor::GetValue(&comm, IN_2);
+
+						if (color < 30)
 						{
-							NXT::Motor::Stop(&comm, OUT_B, 0);
-							NXT::Motor::Stop(&comm, OUT_C, 0);
-							NXT::Motor::Stop(&comm, OUT_A, 0);
-							NXT::Sensor::SetSonarOff(&comm, IN_1);
-							NXT::Sensor::SetColorOff(&comm, IN_2);
-
-							break;
+							xtemp = x;
+							cout << "\nwidze linie! jade do przodu. Nasycenie: " << color;
+							NXT::Motor::SetForward(&comm, OUT_B, x);
+							NXT::Motor::SetForward(&comm, OUT_C, x);
 						}
-						continue;
-					}
+						else
+						{
+							cout << "\nnie widze linii! skręcam w prawo. Nasycenie: " << color;
+							ytemp = y;
+							NXT::Motor::SetReverse(&comm, OUT_B, y);
+							NXT::Motor::SetForward(&comm, OUT_C, y);
+						}
+						if (kbhit() == true)
+						{
+							decyzja = getch();
+							if (decyzja == 'K' || decyzja == 'k')
+							{
+								NXT::Motor::Stop(&comm, OUT_B, 0);
+								NXT::Motor::Stop(&comm, OUT_C, 0);
+								NXT::Motor::Stop(&comm, OUT_A, 0);
+								NXT::Sensor::SetSonarOff(&comm, IN_1);
+								//NXT::Sensor::SetColorOff(&comm, IN_3);
 
-				} while (decyzja != 'K' && decyzja != 'k');
-			}
-			if (decyzja == 'O' || decyzja == 'o')
-			{
-				NXT::Sensor::SetColor(&comm, IN_2, 'n');
+								break;
+							}
+							continue;
+						}
 
-				do
+					} while (decyzja != 'K' && decyzja != 'k');
+				}
+				if (decyzja == 'O' || decyzja == 'o')
 				{
-					color = NXT::Sensor::GetValue(&comm, IN_2);
+					NXT::Sensor::SetColor(&comm, IN_2, 'n');
 
-					if (color > 30)
+					do
 					{
-						xtemp = x;
-						cout << "\nnie widze linii! jade do przodu. Nasycenie: " << color;
-						NXT::Motor::SetForward(&comm, OUT_B, x);
-						NXT::Motor::SetForward(&comm, OUT_C, x);
-					}
-					else
-					{
+						color = NXT::Sensor::GetValue(&comm, IN_2);
 
-						cout << "\nwidze linie! skręcam w prawo. Nasycenie: " << color;
-
-						ytemp = y;
-						NXT::Motor::SetReverse(&comm, OUT_B, y);
-						NXT::Motor::SetForward(&comm, OUT_C, y);
-
-
-
-					}
-					if (kbhit() == true)
-					{
-						decyzja = getch();
-						if (decyzja == 'K' || decyzja == 'k')
+						if (color > 30)
 						{
-							NXT::Motor::Stop(&comm, OUT_B, 0);
-							NXT::Motor::Stop(&comm, OUT_C, 0);
-							NXT::Motor::Stop(&comm, OUT_A, 0);
-							NXT::Sensor::SetSonarOff(&comm, IN_1);
-							NXT::Sensor::SetColorOff(&comm, IN_2);
-
-							break;
+							xtemp = x;
+							cout << "\nnie widze linii! jade do przodu. Nasycenie: " << color;
+							NXT::Motor::SetForward(&comm, OUT_B, x);
+							NXT::Motor::SetForward(&comm, OUT_C, x);
 						}
-						continue;
+						else
+						{
+
+							cout << "\nwidze linie! skręcam w prawo. Nasycenie: " << color;
+
+							ytemp = y;
+							NXT::Motor::SetReverse(&comm, OUT_B, y);
+							NXT::Motor::SetForward(&comm, OUT_C, y);
+
+
+
+						}
+						if (kbhit() == true)
+						{
+							decyzja = getch();
+							if (decyzja == 'K' || decyzja == 'k')
+							{
+								NXT::Motor::Stop(&comm, OUT_B, 0);
+								NXT::Motor::Stop(&comm, OUT_C, 0);
+								NXT::Motor::Stop(&comm, OUT_A, 0);
+								NXT::Sensor::SetSonarOff(&comm, IN_1);
+								NXT::Sensor::SetColorOff(&comm, IN_2);
+
+								break;
+							}
+							continue;
+						}
+
+					} while (decyzja != 'K' && decyzja != 'k');
+				}
+				if (decyzja == 'Z' || decyzja == 'z')
+				{
+					int odleglosc;
+					NXT::Sensor::SetColor(&comm, IN_2, 'n');
+					NXT::Sensor::SetSonar(&comm, IN_3);
+					NXT::Motor::SetForward(&comm, OUT_B, x);
+					NXT::Motor::SetForward(&comm, OUT_C, x);
+
+					do
+					{
+						color = NXT::Sensor::GetValue(&comm, IN_2);
+						Wait(50);
+
+						if (color > 30)
+						{
+							ytemp = y;
+							cout << "\nnie widze linii! skanuje obszar";
+							NXT::Motor::SetReverse(&comm, OUT_B, y);
+							NXT::Motor::SetForward(&comm, OUT_C, y);
+							do
+							{
+								odleglosc = NXT::Sensor::GetSonarValue(&comm, IN_3);
+							} while (odleglosc > 70);
+							cout << "\nznaleziono cel! zaczynam spychać!";
+							NXT::Motor::SetForward(&comm, OUT_B, x);
+							NXT::Motor::SetForward(&comm, OUT_C, x);
+							do
+							{
+								odleglosc = NXT::Sensor::GetSonarValue(&comm, IN_3);
+								color = NXT::Sensor::GetValue(&comm, IN_2);
+								Wait(50);
+							} while (odleglosc < 70 && color > 30);
+						}
+						else
+						{
+
+							cout << "\nwidze linie! skręcam w prawo.";
+							ytemp = y;
+							NXT::Motor::SetReverse(&comm, OUT_B, y);
+							NXT::Motor::SetForward(&comm, OUT_C, y);
+
+
+
+						}
+						if (kbhit() == true)
+						{
+							decyzja = getch();
+							if (decyzja == 'K' || decyzja == 'k')
+							{
+								NXT::Motor::Stop(&comm, OUT_B, 0);
+								NXT::Motor::Stop(&comm, OUT_C, 0);
+								NXT::Motor::Stop(&comm, OUT_A, 0);
+								NXT::Sensor::SetSonarOff(&comm, IN_1);
+								NXT::Sensor::SetColorOff(&comm, IN_2);
+
+								break;
+							}
+							continue;
+						}
+
+					} while (decyzja != 'K' && decyzja != 'k');
+				}
+				if(decyzja == 'P' || decyzja == 'p')
+				{
+					int k1, k2, k = 0, orient, cte, ksi = 1;
+					do
+					{
+						k1 = 30;
+						k2 = 30;
+						orient =2*NXT::Sensor::GetSonarValue(&comm, IN_1); // kompas
+						NXT::Motor::SetForward(&comm, OUT_C, k1);
+						NXT::Motor::SetForward(&comm, OUT_B, k2);
+						cte = convert(k, orient);
+						if (cte <= 0)
+						{
+
+							if (abs(cte) > k1)
+							{
+								NXT::Motor::SetForward(&comm, OUT_B, 0);
+							}
+							else
+							{
+								NXT::Motor::SetForward(&comm, OUT_B, k1 + (ksi * cte));
+							}
+						}
+						if (cte > 0)
+						{
+
+							if (cte > k2)
+							{
+								NXT::Motor::SetForward(&comm, OUT_C, 0);
+							}
+							else
+							{
+								NXT::Motor::SetForward(&comm, OUT_C, k2 - (ksi * cte));
+							}
+						}
+
+						if (kbhit() == true)
+						{
+							decyzja = getch();
+							if (decyzja == 'K' || decyzja == 'k')
+							{
+								NXT::Motor::Stop(&comm, OUT_B, 0);
+								NXT::Motor::Stop(&comm, OUT_C, 0);
+								NXT::Motor::Stop(&comm, OUT_A, 0);
+								NXT::Sensor::SetSonarOff(&comm, IN_1);
+								//NXT::Sensor::SetColorOff(&comm, IN_3);
+
+								break;
+							}
+							
+							if (decyzja == 'N' || decyzja == 'n')
+							{
+								k = 0;
+							}
+							if (decyzja == 'S' || decyzja == 's')
+							{
+								k = 180;
+							}
+							if (decyzja == 'E' || decyzja == 'e')
+							{
+								k = 90;
+							}
+							if (decyzja == 'W' || decyzja == 'w')
+							{
+								k = 270;
+							}
+							
+							continue;
+						}
+
+					} while (decyzja != 'K' && decyzja != 'k');
+					
+				}
+				if (decyzja == 'X' || decyzja == 'x')
+				{
+					for (int i = 0; i < 20; i++)
+					{
+						steer(10, 10, 90, 79 + i);
 					}
+				}
+				if (decyzja == 'N' || decyzja == 'n')
+				{
+					x -= 10;
+				}
 
-				} while (decyzja != 'K' && decyzja != 'k');
-			}
-			if (decyzja == 'Z' || decyzja == 'z')
-			{
-				int odleglosc;
-				NXT::Sensor::SetColor(&comm, IN_2, 'n');
-				NXT::Sensor::SetSonar(&comm, IN_3);
-				NXT::Motor::SetForward(&comm, OUT_B, x);
-				NXT::Motor::SetForward(&comm, OUT_C, x);
+				if (decyzja == 'M' || decyzja == 'm')
+				{
+					x += 10;
+				}
 
-				do
+				if (decyzja == 'V' || decyzja == 'v')
+				{
+					y--;
+				}
+
+				if (decyzja == 'B' || decyzja == 'b')
+				{
+					y++;
+				}
+				//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
+				if (decyzja == 'A' || decyzja == 'a' || (ytemp != y && last_value == 'a'))
+				{
+					ytemp = y;
+					last_value = 'a';
+					NXT::Motor::SetForward(&comm, OUT_B, y);
+					NXT::Motor::SetReverse(&comm, OUT_C, y);
+					//cout<<"SonarValue = "<<NXT::Sensor::GetSonarValue(&comm, IN_4);
+				}
+
+				//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
+				if (decyzja == 'D' || decyzja == 'd' || (ytemp != y && last_value == 'd'))
+				{
+					ytemp = y;
+					last_value = 'd';
+					NXT::Motor::SetReverse(&comm, OUT_B, y);
+					NXT::Motor::SetForward(&comm, OUT_C, y);
+				}
+
+				//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
+				if (decyzja == 'W' || decyzja == 'w' || (xtemp != x && last_value == 'w'))
+				{
+					xtemp = x;
+					last_value = 'w';
+					NXT::Motor::SetForward(&comm, OUT_B, x);
+					NXT::Motor::SetForward(&comm, OUT_C, x);
+				}
+
+				//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
+				if (decyzja == 'S' || decyzja == 's' || (xtemp != x && last_value == 's'))
+				{
+					xtemp = x;
+					last_value = 's';
+					NXT::Motor::SetReverse(&comm, OUT_B, x);
+					NXT::Motor::SetReverse(&comm, OUT_C, x);
+				}
+
+				//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
+				if (decyzja == 'H' || decyzja == 'h')
+				{
+					NXT::Motor::SetForward(&comm, OUT_B, 0);
+					NXT::Motor::SetForward(&comm, OUT_C, 0);
+					NXT::Motor::Stop(&comm, OUT_B, 0);
+					NXT::Motor::Stop(&comm, OUT_C, 0);
+				}
+
+				//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
+				if (decyzja == 'K' || decyzja == 'k')
+				{
+					NXT::Motor::Stop(&comm, OUT_B, 0);
+					NXT::Motor::Stop(&comm, OUT_C, 0);
+					NXT::Motor::Stop(&comm, OUT_A, 0);
+					NXT::Sensor::SetSonarOff(&comm, IN_1);
+					NXT::Sensor::SetColorOff(&comm, IN_3);
+
+					break;
+				}
+
+				//Przed uzyciem sprawdzamy numer portu do którego jest podlączony sensor, 
+				//if (decyzja == 'U' || decyzja == 'u')
+				//{
+				//	cout << "\n Wskazanie sonaru = " << NXT::Sensor::GetSonarValue(&comm, IN_3);
+				//}
+				if (decyzja == 'V' || decyzja == 'v')
+				{
+					cout << "\n Wskazanie kompasu = " << NXT::Sensor::GetSonarValue(&comm, IN_1);
+				}
+
+				//Przed uzyciem sprawdzamy numer portu do którego jest podlączony sensor, 
+				if (decyzja == 'C' || decyzja == 'c')
 				{
 					color = NXT::Sensor::GetValue(&comm, IN_2);
 					Wait(50);
-
-					if (color > 30)
-					{
-						ytemp = y;
-						cout << "\nnie widze linii! skanuje obszar";
-						NXT::Motor::SetReverse(&comm, OUT_B, y);
-						NXT::Motor::SetForward(&comm, OUT_C, y);
-						do
-						{
-							odleglosc = NXT::Sensor::GetSonarValue(&comm, IN_3)
-						} while (odleglosc > 70);
-						cout << "\nznaleziono cel! zaczynam spychać!";
-						NXT::Motor::SetForward(&comm, OUT_B, x);
-						NXT::Motor::SetForward(&comm, OUT_C, x);
-						do
-						{
-							odleglosc = NXT::Sensor::GetSonarValue(&comm, IN_3);
-							color = NXT::Sensor::GetValue(&comm, IN_2);
-							Wait(50);
-						} while (odleglosc < 70 && color > 30);
-					}
-					else
-					{
-
-						cout << "\nwidze linie! skręcam w prawo.";
-						ytemp = y;
-						NXT::Motor::SetReverse(&comm, OUT_B, y);
-						NXT::Motor::SetForward(&comm, OUT_C, y);
-
-
-
-					}
-					if (kbhit() == true)
-					{
-						decyzja = getch();
-						if (decyzja == 'K' || decyzja == 'k')
-						{
-							NXT::Motor::Stop(&comm, OUT_B, 0);
-							NXT::Motor::Stop(&comm, OUT_C, 0);
-							NXT::Motor::Stop(&comm, OUT_A, 0);
-							NXT::Sensor::SetSonarOff(&comm, IN_1);
-							NXT::Sensor::SetColorOff(&comm, IN_2);
-
-							break;
-						}
-						continue;
-					}
-
-				} while (decyzja != 'K' && decyzja != 'k');
-			}
-			if (decyzja == 'P' || decyzja == 'P')
-			{
-				int k1, k2, k=90, orient, cte, ksi = 1;
-				do
-				{
-					k1 = 10;
-					k2 = 10;
-					orient = NXT::Sensor::GetSonarValue(&comm, IN_1); // kompas
-					cte = convert(k, orient);
-					if (cte <= 0)
-					{
-						if (abs(cte) > k1)
-						{
-							NXT::Motor::SetForward(&comm, OUT_B, 0);
-						}
-						else
-						{
-							NXT::Motor::SetForward(&comm, OUT_B, k1 + (ksi * cte));
-						}
-					}
-					if (cte > 0)
-					{
-						if (cte > k2)
-						{
-							NXT::Motor::SetForward(&comm, OUT_C, 0);
-						}
-						else
-						{
-							NXT::Motor::SetForward(&comm, OUT_C, k2 - (ksi * cte));
-						}
-					}
-				
-					if (kbhit() == true)
-					{
-						decyzja = getch();
-						if (decyzja == 'K' || decyzja == 'k')
-						{
-							NXT::Motor::Stop(&comm, OUT_B, 0);
-							NXT::Motor::Stop(&comm, OUT_C, 0);
-							NXT::Motor::Stop(&comm, OUT_A, 0);
-							NXT::Sensor::SetSonarOff(&comm, IN_1);
-							NXT::Sensor::SetColorOff(&comm, IN_2);
-
-							break;
-						}
-						continue;
-					}
-
-				} while (decyzja != 'K' && decyzja != 'k');
-			}
-			if (decyzja == 'X' || decyzja == 'x')
-			{
-				for (int i = 0;i < 20;i++)
-				{
-					steer(10, 10, 90, 79 + i);
+					cout << "\nNasycenie swaitla = " << color;
 				}
-			}
-			if(decyzja=='N' || decyzja=='n')
-			{
-			x-=10; 
-			}
 
-			if(decyzja=='M' || decyzja=='m')
-			{
-			x+=10; 
+				continue;
 			}
+		} while (decyzja != 'k' && decyzja != 'K');
 
-			if(decyzja=='V' || decyzja=='v')
-			{
-			y--; 
-			}
-
-			if(decyzja=='B' || decyzja=='b')
-			{
-			y++; 
-			}
-			//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
-			if(decyzja=='A' || decyzja=='a' || (ytemp!=y && last_value=='a'))
-			{
-			ytemp=y;
-			last_value='a';
-			NXT::Motor::SetForward(&comm, OUT_B, y);
-			NXT::Motor::SetReverse(&comm, OUT_C, y);
-			//cout<<"SonarValue = "<<NXT::Sensor::GetSonarValue(&comm, IN_4);
-			}
-
-			//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
-			if(decyzja=='D' || decyzja=='d' || (ytemp!=y && last_value=='d'))
-			{
-			ytemp=y;
-			last_value='d';
-			NXT::Motor::SetReverse(&comm, OUT_B, y);
-			NXT::Motor::SetForward(&comm, OUT_C, y);
-			}
-
-			//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
-			if(decyzja=='W' || decyzja=='w' || (xtemp!=x && last_value=='w'))
-			{
-			xtemp=x;
-			last_value='w';
-			NXT::Motor::SetForward(&comm, OUT_B, x);
-			NXT::Motor::SetForward(&comm, OUT_C, x);
-			}
-
-			//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
-			if(decyzja=='S' || decyzja=='s'  || (xtemp!=x && last_value=='s'))
-			{
-			xtemp=x;
-			last_value='s';
-			NXT::Motor::SetReverse(&comm, OUT_B, x);
-			NXT::Motor::SetReverse(&comm, OUT_C, x);
-			}
-
-			//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
-			if(decyzja=='H' || decyzja=='h')
-			{
-			NXT::Motor::SetForward(&comm, OUT_B, 0);
-			NXT::Motor::SetForward(&comm, OUT_C, 0);
-			NXT::Motor::Stop(&comm, OUT_B, 0);
-			NXT::Motor::Stop(&comm, OUT_C, 0);
-			}
-       
-			//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
-			if(decyzja=='K' || decyzja=='k')
-			{
-			NXT::Motor::Stop(&comm, OUT_B, 0);
-			NXT::Motor::Stop(&comm, OUT_C, 0);
-			NXT::Motor::Stop(&comm, OUT_A, 0);
-			NXT::Sensor::SetSonarOff(&comm, IN_1);			
-			NXT::Sensor::SetColorOff(&comm,IN_2);
-
-			break;
-			}
-			
-			//Przed uzyciem sprawdzamy numer portu do którego jest podlączony sensor, 
-			if(decyzja=='U' || decyzja=='u')
-			{
-			cout<<" Wskazanie sonaru = "<<NXT::Sensor::GetSonarValue(&comm, IN_3);
-			}
-			if (decyzja == 'V' || decyzja == 'v')
-			{
-			cout << " Wskazanie kompasu = " << NXT::Sensor::GetSonarValue(&comm, IN_1);
-			}
-
-			//Przed uzyciem sprawdzamy numer portu do którego jest podlączony sensor, 
-			if(decyzja=='C' || decyzja=='c')
-			{
-				color=NXT::Sensor::GetValue(&comm,IN_2);
-				Wait(50);
-				cout<<"\nNasycenie swaitla = "<<color;
-			}
-			
-			continue;
-			}
-		}while(decyzja!='k' && decyzja!='K');
-		
 		NXT::StopProgram(&comm);
-		
+
 	}
 	NXT::Close(&comm); //close communication with NXT
 
-	cout<<"\n\nPress ENTER to close program";
+	cout << "\n\nPress ENTER to close program";
 	getchar();
 
 	return 0;
@@ -461,4 +490,3 @@ int main()
 // Wait(50);
 // cout<<"SoundValue = "<<NXT::Sensor::GetValue(&comm, IN_2);
 // }
-
