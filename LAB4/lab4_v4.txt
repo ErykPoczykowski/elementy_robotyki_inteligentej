@@ -1,0 +1,639 @@
+#include "NXT++.h"
+#include <iostream>
+#include <conio.h>
+#include <ctime>
+#include <vector>
+using namespace std;
+using namespace NXT;
+
+Comm::NXTComm comm;
+
+//PRZED UŻYCIEM SPRZETU DOKŁADNIE SPRAWDZAMY: 
+//DO KTÓRYCH PORTÓW WEJŚCIOWYCH (IN) PODŁĄCZONE SĄ SENSORY,\
+//DO KTÓRYCH PORTÓW WYJŚCIOWYCH (OUT) PODŁĄCZONE SĄ SERVO-MOTORY,
+//STARAMY SIĘ PISAC KOD Z MOŻLIWOŚCIĄ ZATRZYMANIA ROBOTA W KAŻDEJ CHWILI,
+//ROBOT POWIENIEN BYC PRZEMIESZCZONY W MIEJSCE TESTÓW ZA POŚREDNICTWEM ZDALNEGO STEROWANIA,
+//CZUJNIKI SA INICJOWANE PRZED PETLA NIESKONCZONA,
+//CZUJNIKI SA DEAKTYWOWANE ZA PETLA NIESKONCZONA, LUB PO KOMENDZIE k,
+
+int convert(int k, int x)
+{
+	x = x - k;
+	if (x > 180)
+	{
+		x = x - 360;
+	}
+	else if (x < -180)
+	{
+		x = 360 + x;
+	}
+	return x;
+}
+
+double ksi = 0.5, rho = 0.5;
+int iteracja = 0;
+const int wiersze = 3;
+const int kolumny = 5;
+
+
+void PDkontroler(int czas_trwania, int n)
+{
+	int start_czasu = clock();
+	int k1, k2, orient, k = n, cte, Pcte = 0;
+	do
+	{
+		k1 = 10;
+		k2 = 10;
+		orient = 2 * NXT::Sensor::GetSonarValue(&comm, IN_3); // kompas
+		NXT::Motor::SetForward(&comm, OUT_C, k1);
+		NXT::Motor::SetForward(&comm, OUT_B, k2);
+		cte = convert(k, orient);
+		int Dcte = cte - Pcte;
+		double korekcja = ksi * cte + rho * Dcte;
+		if (cte <= 0)
+		{
+			if (k1 + korekcja > k2)
+			{
+				NXT::Motor::SetForward(&comm, OUT_B, k2);
+			}
+			else if (k1 + korekcja < -k2)
+			{
+				NXT::Motor::SetReverse(&comm, OUT_B, k2);
+			}
+			else
+			{
+				NXT::Motor::SetForward(&comm, OUT_B, k1 + korekcja);
+			}
+
+		}
+		if (cte > 0)
+		{
+			if (k2 - korekcja > k1)
+			{
+				NXT::Motor::SetForward(&comm, OUT_C, k1);
+			}
+			else if (k2 - korekcja < -k1)
+			{
+				NXT::Motor::SetReverse(&comm, OUT_C, k1);
+			}
+			else
+			{
+				NXT::Motor::SetForward(&comm, OUT_C, k2 - korekcja);
+			}
+		}
+		Pcte = cte;
+
+		if (kbhit() == true)
+		{
+			char decyzja = getch();
+			if (decyzja == 'K' || decyzja == 'k')
+			{
+				NXT::Motor::Stop(&comm, OUT_B, 0);
+				NXT::Motor::Stop(&comm, OUT_C, 0);
+				NXT::Motor::Stop(&comm, OUT_A, 0);
+				NXT::Sensor::SetSonarOff(&comm, IN_3);
+				//NXT::Sensor::SetColorOff(&comm, IN_2);
+
+				break;
+			}
+			continue;
+		}
+
+	} while ((clock() - start_czasu) < czas_trwania);
+
+	NXT::Motor::Stop(&comm, OUT_B, 0);
+	NXT::Motor::Stop(&comm, OUT_C, 0);
+}
+
+
+bool jestPoprawne(int r, int c)
+{
+	return (r >= 0 && r < wiersze && c >= 0 && c < kolumny);
+}
+
+vector<vector<double>> filtr2d(int swiat[wiersze][kolumny], int pomiar, int kierunek, double dokladnosc_r, double dokladnosc_p, vector<vector<double>> lokalizacja)
+{
+	double suma;
+
+	// pomiar
+	for (int i = 0; i < wiersze; i++)
+	{
+		for (int j = 0; j < kolumny; j++)
+		{
+			bool zgodnosc = (swiat[i][j] == pomiar);
+			double mnoznik = zgodnosc ? dokladnosc_p : (1.0 - dokladnosc_p);
+			lokalizacja[i][j] *= mnoznik;
+		}
+	}
+
+	//normalizacja
+	suma = 0.0;
+	for (int i = 0; i < wiersze; i++)
+	{
+		for (int j = 0; j < kolumny; j++)
+		{
+			suma += lokalizacja[i][j];
+		}
+	}
+	for (int i = 0; i < wiersze; i++)
+	{
+		for (int j = 0; j < kolumny; j++)
+		{
+			lokalizacja[i][j] /= suma;
+		}
+	}
+	double lokalizacjaT[3][5];
+	for (int i = 0; i < wiersze; i++)
+	{
+		for (int j = 0; j < kolumny; j++)
+		{
+			lokalizacjaT[i][j] = 0.0;
+		}
+	}
+
+	// translacja kierunku na ruch po tablicy
+	int dr[4] = { -1, 0, 1, 0 };
+	int dc[4] = { 0, 1, 0, -1 };
+
+	int ruchW = dr[kierunek];
+	int ruchK = dc[kierunek];
+
+	// obługa ruchu
+	for (int i = 0; i < wiersze; ++i)
+	{
+		for (int j = 0; j < kolumny; ++j)
+		{
+			double szansa = lokalizacja[i][j];
+
+			int celW = i + ruchW;
+			int celK = j + ruchK;
+			// sprawdzenie czy nie wyjeżdżamy poza pole, w przypadku wyjazdu następuje odbicie
+			if (!jestPoprawne(celW, celK))
+			{
+				celW = i;
+				celK = j;
+			}
+			// szansa na poruszenie się w daną strone
+			lokalizacjaT[celW][celK] += szansa * dokladnosc_r;
+			//obliczanie poprawnych sąsiadów (ignorujemy ściany)
+			int iloscSasiadow = 0;
+			int coordSasiadow[4][2];
+			int coordkierunkow[4][2] = { {-1,0}, {1,0}, {0,-1}, {0,1} };
+
+			for (int k = 0; k < 4; ++k)
+			{
+				// obliczanie koordynatów danego sąsiada
+				int sasiadW = celW + coordkierunkow[k][0];
+				int sasiadK = celK + coordkierunkow[k][1];
+				// sprawdzenie czy jets on poprawnym celem
+				if (jestPoprawne(sasiadW, sasiadK))
+				{
+					// zapisanie go do koordynatów i zwiększenie ilości sąsiadów o 1
+					coordSasiadow[iloscSasiadow][0] = sasiadW;
+					coordSasiadow[iloscSasiadow][1] = sasiadK;
+					iloscSasiadow++;
+				}
+			}
+			// jeśli jest przynajmniej 1 poprawny sąsiad
+			if (iloscSasiadow > 0)
+			{
+				// praawdopodobienstwo znalezienia się w polach sąsiednich
+				double sasiadP = szansa * ((1 - dokladnosc_r) / 4);
+
+				for (int l = 0; l < iloscSasiadow; l++)
+				{
+					// dodanie prawdopodobieństwa do pól poprawnych sąsiadów
+					int sasiadW = coordSasiadow[l][0];
+					int sasiadK = coordSasiadow[l][1];
+					lokalizacjaT[sasiadW][sasiadK] += sasiadP;
+				}
+			}
+		}
+	}
+	// przepisanie wyników z tablicy tymczasowej do orginalnej
+	for (int i = 0; i < wiersze; ++i)
+	{
+		for (int j = 0; j < kolumny; ++j)
+		{
+			lokalizacja[i][j] = lokalizacjaT[i][j];
+		}
+	}
+	// wyświetlenie tablicy
+	cout << "tablica prawdopodobienstw" << endl;
+	for (int i = 0; i < wiersze; i++)
+	{
+		for (int j = 0; j < kolumny; j++)
+		{
+			cout << lokalizacja[i][j] << ", ";
+		}
+		cout << endl;
+	}
+	cout << endl << "koniec ruchu!" << endl;
+	return lokalizacja;
+}
+
+
+
+int main()
+{
+	srand(time(NULL));
+
+	cout << "Szukanie sygnalu... to moze zajac chwile.\n";
+	if (NXT::OpenBT(&comm)) //initialize the NXT and continue if it succeeds
+	{
+		cout << "Sygnal znaleziony!";
+		cout << "\nPoziom baterii = " << NXT::BatteryLevel(&comm);
+		cout << "\nDostepna pamiec flash = " << NXT::GetAvailableFlash(&comm);
+
+		int x = 30;//szybkość jazdy w przód i tył
+		int xtemp = 30;//potrzebna do sprawdzania czy predkosc sie zmienila
+
+		int y = 20;//szybkość obrotu w lewo, prawo
+		int ytemp = 20;//potrzebna do sprawdzania czy predkosc sie zmienila
+
+		char last_value;//zapamietana ostatnia instrukcja sterująca
+
+		//Przed uzyciem sprawdzamy numer portu do którego jest podlączony sensor, 
+		//NXT::Sensor::SetTouch(&comm, IN_1);//inicjacja sensora dotyku
+
+		//aktywacja kompasu,
+		NXT::Sensor::SetSonar(&comm, IN_3);
+
+		//aktywacja czujnika koloru
+		//NXT::Sensor::SetColor(&comm, IN_2, 'n');
+		//int color;
+
+		//aktywacja sonaru,
+		//NXT::Sensor::SetSonar(&comm, IN_3);
+
+		//początek programu
+		NXT::StartProgram(&comm, "program1");
+
+		//zmienna używana do sterowania
+		char decyzja;
+
+		cout << "\n ___Podstawowe sterowanie do uzupelnienia___";
+		cout << "\n A - jazda w lewo";
+		cout << "\n D - jazda w prawo";
+		cout << "\n W - jazda na wprost";
+		cout << "\n S - jazda do tylu";
+		cout << "\n U - odczyt z sonaru";
+		cout << "\n C - odczyt nasycenia koloru";
+		cout << "\n V - odczyt z kompasu";
+		cout << "\n H - Zatrzymanie silnikow";
+		cout << "\n O - implementacja kontrolera PID z relatywnym kompasem";
+		cout << "\n F - filtr Histogramowy";
+		cout << "\nK - Koniec Programu";
+
+		do
+		{
+			//Przed uzyciem sprawdzamy numer portu do którego jest podlączony sensor, 
+		/*
+		if(NXT::Sensor::GetValue(&comm, IN_1)==1)
+			{
+			for(int i=1;i<1000;i=i+10)
+				{
+				NXT::PlayTone(&comm, i, 1);
+				Wait(1);
+				}
+			}
+		*/
+
+			if (kbhit() == true)
+			{
+
+				decyzja = getch();
+				if (decyzja == 'O' || decyzja == 'o')
+				{
+					int n = 2 * NXT::Sensor::GetSonarValue(&comm, IN_3); //kompas
+					int k1, k2, orient, k = n, cte, Pcte = 0;
+					do
+					{
+						k1 = 10;
+						k2 = 10;
+						orient = 2 * NXT::Sensor::GetSonarValue(&comm, IN_3); // kompas
+						NXT::Motor::SetForward(&comm, OUT_C, k1);
+						NXT::Motor::SetForward(&comm, OUT_B, k2);
+						cte = convert(k, orient);
+						int Dcte = cte - Pcte;
+						double korekcja = ksi * cte + rho * Dcte;
+						if (cte <= 0)
+						{
+							if (k1 + korekcja > k2)
+							{
+								NXT::Motor::SetForward(&comm, OUT_B, k2);
+							}
+							else if (k1 + korekcja < -k2)
+							{
+								NXT::Motor::SetReverse(&comm, OUT_B, k2);
+							}
+							else
+							{
+								NXT::Motor::SetForward(&comm, OUT_B, k1 + korekcja);
+							}
+
+						}
+						if (cte > 0)
+						{
+							if (k2 - korekcja > k1)
+							{
+								NXT::Motor::SetForward(&comm, OUT_C, k1);
+							}
+							else if (k2 - korekcja < -k1)
+							{
+								NXT::Motor::SetReverse(&comm, OUT_C, k1);
+							}
+							else
+							{
+								NXT::Motor::SetForward(&comm, OUT_C, k2 - korekcja);
+							}
+						}
+						Pcte = cte;
+
+						if (kbhit() == true)
+						{
+							decyzja = getch();
+							if (decyzja == 'K' || decyzja == 'k')
+							{
+								NXT::Motor::Stop(&comm, OUT_B, 0);
+								NXT::Motor::Stop(&comm, OUT_C, 0);
+								NXT::Motor::Stop(&comm, OUT_A, 0);
+								NXT::Sensor::SetSonarOff(&comm, IN_3);
+								//NXT::Sensor::SetColorOff(&comm, IN_2);
+
+								break;
+							}
+
+							if (decyzja == 'N' || decyzja == 'n')
+							{
+								k = n;
+							}
+							if (decyzja == 'S' || decyzja == 's')
+							{
+								k = n + 180;
+							}
+							if (decyzja == 'E' || decyzja == 'e')
+							{
+								k = n + 90;
+							}
+							if (decyzja == 'W' || decyzja == 'w')
+							{
+								k = n + 270;
+							}
+
+							continue;
+						}
+
+					} while (decyzja != 'K' && decyzja != 'k');
+
+				}
+
+
+				if (decyzja == 'F' || decyzja == 'f')
+				{
+					int orientacja;
+					double dokladnosc_r = 0.6;
+					double dokladnosc_p = 0.8;
+					int swiat[wiersze][kolumny] = { {1,5,6,5,3},
+													{5,6,3,1,6},
+													{6,5,6,5,3} };
+
+					vector<vector<double>> lokalizacja(wiersze, vector<double>(kolumny, 1.0 / (kolumny * wiersze)));
+
+					int n = 2 * NXT::Sensor::GetSonarValue(&comm, IN_3); //kompas
+					int p = n;
+
+					int k1 = 10, k2 = 10, k = n, Pcte = 0;
+					cout << "\npodaj orientacje robota (0 - polnoc, 1 - wschod, 2 - poludnie, 3 - zachod): \n";
+					cin >> orientacja;
+
+					do
+					{
+						NXT::Sensor::SetColor(&comm, IN_2, 'f');
+						int color = NXT::Sensor::GetValue(&comm, IN_2);
+						Wait(50);
+						cout << "\npodaj kierunek jazdy (N - polnoc, S - poludnie, E - wschod, W - zachod): \n";
+						char decyzja = getch();
+						if (decyzja == 'K' || decyzja == 'k')
+						{
+							NXT::Motor::Stop(&comm, OUT_B, 0);
+							NXT::Motor::Stop(&comm, OUT_C, 0);
+							NXT::Motor::Stop(&comm, OUT_A, 0);
+							NXT::Sensor::SetSonarOff(&comm, IN_3);
+							NXT::Sensor::SetColorOff(&comm, IN_2);
+
+							break;
+						}
+						cout << "kierunek: " << n << endl;
+
+						if (decyzja == 'W' || decyzja == 'w')
+						{
+							PDkontroler(7000, n);
+							lokalizacja = filtr2d(swiat, color, orientacja, dokladnosc_r, dokladnosc_p, lokalizacja);
+
+						}
+						if (decyzja == 'S' || decyzja == 's')
+						{
+							if (n < 180)
+							{
+								PDkontroler(15000, n + 180);
+								n += 180;
+							}
+							else
+							{
+								PDkontroler(15000, 180 - (360 - n));
+								n = 180 - (360 - n);
+							}
+
+							if (orientacja >= 2)
+							{
+								orientacja -= 2;
+								lokalizacja = filtr2d(swiat, color, orientacja, dokladnosc_r, dokladnosc_p, lokalizacja);
+							}
+							else
+							{
+								orientacja += 2;
+								lokalizacja = filtr2d(swiat, color, orientacja, dokladnosc_r, dokladnosc_p, lokalizacja);
+							}
+						}
+						if (decyzja == 'A' || decyzja == 'a')
+						{
+							if (n < 270)
+							{
+								PDkontroler(12000, n + 270);
+								n += 270;
+							}
+							else
+							{
+								PDkontroler(12000, 270 - (360 - n));
+								n = 270 - (360 - n);
+							}
+
+							if (orientacja <= 0)
+							{
+								orientacja = 3;
+								lokalizacja = filtr2d(swiat, color, orientacja, dokladnosc_r, dokladnosc_p, lokalizacja);
+							}
+							else
+							{
+								orientacja -= 1;
+								lokalizacja = filtr2d(swiat, color, orientacja, dokladnosc_r, dokladnosc_p, lokalizacja);
+							}
+
+
+						}
+						if (decyzja == 'D' || decyzja == 'd')
+						{
+							if (n < 90)
+							{
+								PDkontroler(12000, n + 90);
+								n += 90;
+							}
+							else
+							{
+								PDkontroler(12000, 90 - (360 - n));
+								n = 90 - (360 - n);
+							}
+
+							if (orientacja >= 3)
+							{
+								orientacja = -1;
+								lokalizacja = filtr2d(swiat, color, orientacja, dokladnosc_r, dokladnosc_p, lokalizacja);
+							}
+							else
+							{
+								orientacja += 1;
+								lokalizacja = filtr2d(swiat, color, orientacja, dokladnosc_r, dokladnosc_p, lokalizacja);
+							}
+
+						}
+					} while (decyzja != 'K' && decyzja != 'k');
+				}
+				if (decyzja == 'N' || decyzja == 'n')
+				{
+					x -= 10;
+				}
+
+				if (decyzja == 'M' || decyzja == 'm')
+				{
+					x += 10;
+				}
+
+				if (decyzja == 'V' || decyzja == 'v')
+				{
+					y--;
+				}
+
+				if (decyzja == 'B' || decyzja == 'b')
+				{
+					y++;
+				}
+				//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
+				if (decyzja == 'A' || decyzja == 'a' || (ytemp != y && last_value == 'a'))
+				{
+					ytemp = y;
+					last_value = 'a';
+					NXT::Motor::SetForward(&comm, OUT_B, y);
+					NXT::Motor::SetReverse(&comm, OUT_C, y);
+					//cout<<"SonarValue = "<<NXT::Sensor::GetSonarValue(&comm, IN_4);
+				}
+
+				//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
+				if (decyzja == 'D' || decyzja == 'd' || (ytemp != y && last_value == 'd'))
+				{
+					ytemp = y;
+					last_value = 'd';
+					NXT::Motor::SetReverse(&comm, OUT_B, y);
+					NXT::Motor::SetForward(&comm, OUT_C, y);
+				}
+
+				//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
+				if (decyzja == 'W' || decyzja == 'w' || (xtemp != x && last_value == 'w'))
+				{
+					xtemp = x;
+					last_value = 'w';
+					NXT::Motor::SetForward(&comm, OUT_B, x);
+					NXT::Motor::SetForward(&comm, OUT_C, x);
+				}
+
+				//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
+				if (decyzja == 'S' || decyzja == 's' || (xtemp != x && last_value == 's'))
+				{
+					xtemp = x;
+					last_value = 's';
+					NXT::Motor::SetReverse(&comm, OUT_B, x);
+					NXT::Motor::SetReverse(&comm, OUT_C, x);
+				}
+
+				//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
+				if (decyzja == 'H' || decyzja == 'h')
+				{
+					NXT::Motor::SetForward(&comm, OUT_B, 0);
+					NXT::Motor::SetForward(&comm, OUT_C, 0);
+					NXT::Motor::Stop(&comm, OUT_B, 0);
+					NXT::Motor::Stop(&comm, OUT_C, 0);
+				}
+
+				//Przed uzyciem serwo sprawdzamy numer portu do którego jest podlączony,
+				if (decyzja == 'K' || decyzja == 'k')
+				{
+					NXT::Motor::Stop(&comm, OUT_B, 0);
+					NXT::Motor::Stop(&comm, OUT_C, 0);
+					NXT::Motor::Stop(&comm, OUT_A, 0);
+					NXT::Sensor::SetSonarOff(&comm, IN_1);
+					NXT::Sensor::SetColorOff(&comm, IN_2);
+
+					break;
+				}
+
+				//Przed uzyciem sprawdzamy numer portu do którego jest podlączony sensor, 
+				//if (decyzja == 'U' || decyzja == 'u')
+				//{
+				//	cout << "\n Wskazanie sonaru = " << NXT::Sensor::GetSonarValue(&comm, IN_3);
+				//}
+				if (decyzja == 'V' || decyzja == 'v')
+				{
+					cout << "\n Wskazanie kompasu = " << NXT::Sensor::GetSonarValue(&comm, IN_1);
+				}
+
+				//Przed uzyciem sprawdzamy numer portu do którego jest podlączony sensor, 
+				//if (decyzja == 'C' || decyzja == 'c')
+				//{
+				//	color = NXT::Sensor::GetValue(&comm, IN_2);
+				//	Wait(50);
+				//	cout << "\nNasycenie swaitla = " << color;
+				//}
+
+				continue;
+			}
+		} while (decyzja != 'k' && decyzja != 'K');
+
+		NXT::StopProgram(&comm);
+
+	}
+	NXT::Close(&comm); //close communication with NXT
+
+	cout << "\n\nPress ENTER to close program";
+	getchar();
+
+	return 0;
+}
+
+
+//opcje dotyczace Mindstorm NXT v. 1.0
+
+//if(decyzja=='L' || decyzja=='l')
+// {
+//  NXT::Sensor::SetLight(&comm, IN_3, 1);
+//  Wait(50);
+//  cout<<"LightValue = "<<NXT::Sensor::GetValue(&comm, IN_3);
+//  Wait(50);
+//  NXT::Sensor::SetLight(&comm, IN_3, 0);
+// }
+
+	//if(decyzja=='O' || decyzja=='o')
+// {
+// NXT::Sensor::SetSound(&comm, IN_2);
+// Wait(50);
+// cout<<"SoundValue = "<<NXT::Sensor::GetValue(&comm, IN_2);
+// }
